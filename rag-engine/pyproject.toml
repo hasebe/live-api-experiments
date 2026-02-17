@@ -1,0 +1,14 @@
+[project]
+name = "rag-engine-quickstart"
+version = "0.1.0"
+description = "Vertex AI RAG Engine Quickstart"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "google-cloud-aiplatform",
+]
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
