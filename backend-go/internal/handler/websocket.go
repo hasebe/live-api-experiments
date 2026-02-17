@@ -30,7 +30,7 @@ func (h *WebSocketHandler) Handle(ws *websocket.Conn) {
 	// Used from internal/tools package
 
 	log.Printf("Connecting to Gemini Live API with model: %s", model)
-	session, err := h.Client.Connect(ctx, model, []*genai.Tool{tools.WeatherTool})
+	session, err := h.Client.Connect(ctx, model, []*genai.Tool{tools.WeatherTool, tools.RagTool})
 	if err != nil {
 		log.Printf("Failed to connect to Gemini: %v", err)
 		return
@@ -71,9 +71,12 @@ func (h *WebSocketHandler) Handle(ws *websocket.Conn) {
 
 					// Use tool handler
 					var result map[string]any
-					if fc.Name == "get_current_weather" {
+					switch fc.Name {
+					case "get_current_weather":
 						result = tools.HandleGetCurrentWeather(fc.Args)
-					} else {
+					case "search_zero_trust_docs":
+						result = tools.HandleSearchZeroTrustDocs(ctx, fc.Args)
+					default:
 						result = map[string]any{"error": "Unknown function"}
 					}
 
