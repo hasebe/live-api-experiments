@@ -16,12 +16,12 @@ public static class Tools
                 Description = "Get the current weather in a given location",
                 Parameters = new Schema
                 {
-                    Type = Google.GenAI.Types.Type.OBJECT,
+                    Type = Google.GenAI.Types.Type.Object,
                     Properties = new Dictionary<string, Schema>
                     {
                         ["location"] = new Schema
                         {
-                            Type = Google.GenAI.Types.Type.STRING,
+                            Type = Google.GenAI.Types.Type.String,
                             Description = "The city and state, e.g. San Francisco, CA"
                         }
                     },

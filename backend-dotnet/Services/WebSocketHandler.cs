@@ -41,7 +41,7 @@ public class WebSocketHandler
 
         var config = new LiveConnectConfig
         {
-            ResponseModalities = new List<Modality> { Modality.AUDIO },
+            ResponseModalities = new List<Modality> { Modality.Audio },
             SpeechConfig = new SpeechConfig
             {
                 VoiceConfig = new VoiceConfig
