@@ -4,7 +4,7 @@ go 1.25.6
 
 require (
 	golang.org/x/net v0.49.0
-	google.golang.org/genai v1.42.0
+	google.golang.org/genai v1.46.0
 )
 
 require (
