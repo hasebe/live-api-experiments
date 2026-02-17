@@ -15,6 +15,7 @@ This project demonstrates the usage of Google Cloud Multimodal Live API using a 
 - `backend-go/`: Go server acting as a proxy to Gemini Live API.
 - `backend-dotnet/`: .NET server acting as a proxy to Gemini Live API.
 - `frontend/`: Next.js web application for recording/playing audio.
+- `rag-engine/`: Python scripts for setting up and managing the Vertex AI RAG Engine.
 
 ## Setup & Run
 
