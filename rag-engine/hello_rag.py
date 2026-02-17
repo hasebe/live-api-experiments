@@ -1,15 +1,23 @@
 from vertexai import rag
 from vertexai.generative_models import GenerativeModel, Tool
 import vertexai
+import os
 
-# TODO(developer): 以下をご自身の環境に合わせて更新してください。
-PROJECT_ID = "your-project-id"  # あなたのプロジェクトID
-LOCATION = "your-location"  # あなたのロケーション
-display_name = "test_corpus"    # RAG コーパスの表示名
-paths = ["https://drive.google.com/file/d/123", "gs://my_bucket/my_files_dir"] # インポートするファイルパスのリスト (Google StorageまたはGoogle Drive のリンクに対応)
+# Configuration via environment variables
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
+LOCATION = os.environ.get("RAG_LOCATION", os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"))
+display_name = os.environ.get("RAG_CORPUS_NAME", "test_corpus")
 
+# Comma-separated list of paths
+paths_str = os.environ.get("RAG_IMPORT_PATHS", "")
+paths = [p.strip() for p in paths_str.split(",")] if paths_str else []
 
 def run_rag_quickstart():
+    if not PROJECT_ID:
+        raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is not set.")
+    if not paths:
+        print("Warning: RAG_IMPORT_PATHS is not set. No files will be imported.")
+
     print(f"Initializing Vertex AI API for project: {PROJECT_ID} (location: {LOCATION})")
     # Initialize Vertex AI API once per session
     vertexai.init(project=PROJECT_ID, location=LOCATION)
@@ -97,9 +105,8 @@ def run_rag_quickstart():
 
 
 if __name__ == "__main__":
-    if PROJECT_ID == "your-project-id" or LOCATION == "your-location":
-        print("⚠️ 警告: PROJECT_ID や LOCATION などのパラメータがデフォルト値のままです。")
-        print("スクリプト内のTODOセクションを自身の環境に合わせて書き換えてから再実行してください。")
+    try:
+        run_rag_quickstart()
+    except Exception as e:
+        print(f"Error: {e}")
         exit(1)
-    
-    run_rag_quickstart()
