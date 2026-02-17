@@ -15,6 +15,7 @@ This project demonstrates the usage of Google Cloud Multimodal Live API using a 
 - `backend-go/`: Go server acting as a proxy to Gemini Live API.
 - `backend-dotnet/`: .NET server acting as a proxy to Gemini Live API.
 - `frontend/`: Next.js web application for recording/playing audio.
+- `rag-engine/`: Python scripts for setting up and managing the Vertex AI RAG Engine.
 
 ## Setup & Run
 
@@ -28,7 +29,13 @@ go mod tidy
 # Run server
 # Ensure GOOGLE_CLOUD_PROJECT is set
 export GOOGLE_CLOUD_PROJECT="your-project-id"
-export GOOGLE_CLOUD_LOCATION="us-central1" # Optional
+export GOOGLE_CLOUD_LOCATION="us-central1" # Optional, Live API Location
+
+# Optional: RAG Engine Configuration (for Zero Trust Search Tool, etc)
+# If omitted, GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION will be used as fallbacks.
+export RAG_CORPUS_ID="your-rag-corpus-id"
+export RAG_LOCATION="us-central1" # e.g. "europe-west3"
+
 go run cmd/server/main.go
 ```
 
@@ -62,6 +69,24 @@ bun dev
 ```
 
 App runs on `http://localhost:3000`.
+
+### 4. RAG Engine Setup (Optional)
+
+If you want to use the `search_zero_trust_docs` or other RAG features, you need to set up a Vertex AI RAG Corpus first.
+
+```bash
+cd rag-engine
+# Ensure uv is installed (https://docs.astral.sh/uv/)
+
+export GOOGLE_CLOUD_PROJECT="your-project-id"
+export RAG_LOCATION="europe-west3" # Supported RAG location
+export RAG_IMPORT_PATHS="gs://your_bucket/docs,https://drive.google.com/file/d/123"
+
+# Run the setup script
+uv run hello_rag.py
+```
+
+Check `rag-engine/README.md` for more details.
 
 ## Architecture
 
