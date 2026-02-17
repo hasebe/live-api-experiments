@@ -32,7 +32,7 @@ func NewClient(ctx context.Context) (*Client, error) {
 	return &Client{client: c}, nil
 }
 
-func (c *Client) Connect(ctx context.Context, model string, tools []*genai.Tool) (*genai.Session, error) {
+func (c *Client) Connect(ctx context.Context, model string, tools []*genai.Tool, systemInstruction string) (*genai.Session, error) {
 	// Simple config for audio-only for now, plus tools
 	config := &genai.LiveConnectConfig{
 		ResponseModalities: []genai.Modality{genai.ModalityAudio},
@@ -46,5 +46,14 @@ func (c *Client) Connect(ctx context.Context, model string, tools []*genai.Tool)
 		},
 		ExplicitVADSignal: genai.Ptr(true),
 	}
+
+	if systemInstruction != "" {
+		config.SystemInstruction = &genai.Content{
+			Parts: []*genai.Part{
+				{Text: systemInstruction},
+			},
+		}
+	}
+
 	return c.client.Live.Connect(ctx, model, config)
 }

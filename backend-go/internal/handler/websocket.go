@@ -30,7 +30,7 @@ func (h *WebSocketHandler) Handle(ws *websocket.Conn) {
 	// Used from internal/tools package
 
 	log.Printf("Connecting to Gemini Live API with model: %s", model)
-	session, err := h.Client.Connect(ctx, model, []*genai.Tool{tools.WeatherTool, tools.RagTool})
+	session, err := h.Client.Connect(ctx, model, []*genai.Tool{tools.WeatherTool, tools.RagTool}, SystemInstruction)
 	if err != nil {
 		log.Printf("Failed to connect to Gemini: %v", err)
 		return
@@ -93,7 +93,8 @@ func (h *WebSocketHandler) Handle(ws *websocket.Conn) {
 					if err != nil {
 						log.Printf("Failed to send function response: %v", err)
 					} else {
-						log.Printf("Sent function response: %v", result)
+						// log.Printf("Sent function response: %v", result) // Suppressed to avoid large logs
+						log.Printf("Sent function response for: %s", fc.Name)
 					}
 				}
 			}
