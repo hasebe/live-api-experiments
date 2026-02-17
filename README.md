@@ -70,6 +70,24 @@ bun dev
 
 App runs on `http://localhost:3000`.
 
+### 4. RAG Engine Setup (Optional)
+
+If you want to use the `search_zero_trust_docs` or other RAG features, you need to set up a Vertex AI RAG Corpus first.
+
+```bash
+cd rag-engine
+# Ensure uv is installed (https://docs.astral.sh/uv/)
+
+export GOOGLE_CLOUD_PROJECT="your-project-id"
+export RAG_LOCATION="europe-west3" # Supported RAG location
+export RAG_IMPORT_PATHS="gs://your_bucket/docs,https://drive.google.com/file/d/123"
+
+# Run the setup script
+uv run hello_rag.py
+```
+
+Check `rag-engine/README.md` for more details.
+
 ## Architecture
 
 1.  **Browser** captures audio (16kHz PCM) via AudioWorklet.
