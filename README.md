@@ -28,7 +28,13 @@ go mod tidy
 # Run server
 # Ensure GOOGLE_CLOUD_PROJECT is set
 export GOOGLE_CLOUD_PROJECT="your-project-id"
-export GOOGLE_CLOUD_LOCATION="us-central1" # Optional
+export GOOGLE_CLOUD_LOCATION="us-central1" # Optional, Live API Location
+
+# Optional: RAG Engine Configuration (for Zero Trust Search Tool, etc)
+# If omitted, GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION will be used as fallbacks.
+export RAG_CORPUS_ID="your-rag-corpus-id"
+export RAG_LOCATION="us-central1" # e.g. "europe-west3"
+
 go run cmd/server/main.go
 ```
 
