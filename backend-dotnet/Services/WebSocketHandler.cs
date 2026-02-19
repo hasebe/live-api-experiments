@@ -41,6 +41,16 @@ public class WebSocketHandler
 
         var config = new LiveConnectConfig
         {
+            SystemInstruction = new Content 
+            {
+                Parts = new List<Part> 
+                { 
+                    new Part
+                    {
+                        Text = Instruction.SystemInstruction
+                    } 
+                }
+            },
             ResponseModalities = new List<Modality> { Modality.Audio },
             SpeechConfig = new SpeechConfig
             {
@@ -49,7 +59,7 @@ public class WebSocketHandler
                     PrebuiltVoiceConfig = new PrebuiltVoiceConfig { VoiceName = "Puck" }
                 }
             },
-            Tools = new List<Google.GenAI.Types.Tool> { backend_dotnet.Services.Tools.WeatherTool },
+            Tools = new List<Google.GenAI.Types.Tool> { backend_dotnet.Services.WeatherTool.Tool, backend_dotnet.Services.RagTool.Tool },
             ExplicitVadSignal = true
         };
 
@@ -65,7 +75,7 @@ public class WebSocketHandler
                 {
                     while (!linkedCts.Token.IsCancellationRequested)
                     {
-                        LiveServerMessage serverMessage = await session.ReceiveAsync();
+                        LiveServerMessage serverMessage = await session.ReceiveAsync(linkedCts.Token);
                         if (serverMessage == null) break;
 
                         if (serverMessage.VoiceActivity != null)
@@ -84,10 +94,15 @@ public class WebSocketHandler
                                 _logger.LogInformation($"Received Tool Call: {fc.Name}");
                                 
                                 Dictionary<string, object> result;
-                                if (fc.Name == "get_current_weather")
+                                if (fc.Name == "search_zero_trust_docs")
                                 {
-                                    var args = fc.Args as Dictionary<string, object>;
-                                    result = backend_dotnet.Services.Tools.HandleGetCurrentWeather(args);
+                                    var args = fc.Args != null ? new Dictionary<string, object>(fc.Args) : new Dictionary<string, object>();
+                                    result = await backend_dotnet.Services.RagTool.HandleSearchZeroTrustDocsAsync(args);
+                                }
+                                else if (fc.Name == "get_current_weather")
+                                {
+                                    var args = fc.Args != null ? new Dictionary<string, object>(fc.Args) : new Dictionary<string, object>();
+                                    result = backend_dotnet.Services.WeatherTool.HandleGetCurrentWeather(args);
                                 }
                                 else
                                 {
@@ -100,8 +115,8 @@ public class WebSocketHandler
                                     {
                                         new FunctionResponse
                                         {
-                                            Name = fc.Name,
-                                            Id = fc.Id,
+                                            Name = fc.Name ?? "unknown",
+                                            Id = fc.Id ?? "",
                                             Response = result
                                         }
                                     }

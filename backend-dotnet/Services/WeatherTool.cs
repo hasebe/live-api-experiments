@@ -4,9 +4,9 @@ using System.Text.Json.Nodes;
 
 namespace backend_dotnet.Services;
 
-public static class Tools
+public static class WeatherTool
 {
-    public static Tool WeatherTool = new Tool
+    public static Tool Tool = new Tool
     {
         FunctionDeclarations = new List<FunctionDeclaration>
         {
@@ -36,7 +36,7 @@ public static class Tools
         string location = "unknown";
         if (args != null && args.ContainsKey("location") && args["location"] != null)
         {
-            location = args["location"].ToString();
+            location = args["location"].ToString() ?? "unknown";
         }
         else
         {
@@ -48,7 +48,7 @@ public static class Tools
         {
             { "weather", "Sunny" },
             { "temperature", 25 },
-            { "location", location },
+            { "location", location ?? "unknown" },
             { "note", "This is mock data from the backend tool" }
         };
     }
