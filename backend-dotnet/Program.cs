@@ -19,8 +19,14 @@ app.MapGet("/ws", async (HttpContext context, WebSocketHandler handler) =>
 {
     if (context.WebSockets.IsWebSocketRequest)
     {
+        string ragProtocol = context.Request.Query["rag_protocol"].ToString();
+        if (string.IsNullOrEmpty(ragProtocol))
+        {
+            ragProtocol = "grpc";
+        }
+
         using var ws = await context.WebSockets.AcceptWebSocketAsync();
-        await handler.Handle(ws, context.RequestAborted);
+        await handler.Handle(ws, context.RequestAborted, ragProtocol);
     }
     else
     {

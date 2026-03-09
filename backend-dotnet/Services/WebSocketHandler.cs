@@ -11,13 +11,15 @@ namespace backend_dotnet.Services;
 public class WebSocketHandler
 {
     private readonly ILogger<WebSocketHandler> _logger;
+    // Semaphore to synchronize writes to the Gemini session
+    private readonly SemaphoreSlim _sessionLock = new(1, 1);
 
     public WebSocketHandler(ILogger<WebSocketHandler> logger)
     {
         _logger = logger;
     }
 
-    public async Task Handle(WebSocket ws, CancellationToken cancellationToken)
+    public async Task Handle(WebSocket ws, CancellationToken cancellationToken, string ragProtocol = "grpc")
     {
         using var cts = new CancellationTokenSource();
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, cancellationToken);
@@ -97,7 +99,7 @@ public class WebSocketHandler
                                 if (fc.Name == "search_zero_trust_docs")
                                 {
                                     var args = fc.Args != null ? new Dictionary<string, object>(fc.Args) : new Dictionary<string, object>();
-                                    result = await backend_dotnet.Services.RagTool.HandleSearchZeroTrustDocsAsync(args);
+                                    result = await backend_dotnet.Services.RagTool.HandleSearchZeroTrustDocsAsync(args, ragProtocol);
                                 }
                                 else if (fc.Name == "get_current_weather")
                                 {
@@ -109,18 +111,26 @@ public class WebSocketHandler
                                     result = new Dictionary<string, object> { ["error"] = "Unknown function" };
                                 }
 
-                                await session.SendToolResponseAsync(new LiveSendToolResponseParameters
+                                await _sessionLock.WaitAsync(linkedCts.Token);
+                                try
                                 {
-                                    FunctionResponses = new List<FunctionResponse>
+                                    await session.SendToolResponseAsync(new LiveSendToolResponseParameters
                                     {
-                                        new FunctionResponse
+                                        FunctionResponses = new List<FunctionResponse>
                                         {
-                                            Name = fc.Name ?? "unknown",
-                                            Id = fc.Id ?? "",
-                                            Response = result
+                                            new FunctionResponse
+                                            {
+                                                Name = fc.Name ?? "unknown",
+                                                Id = fc.Id ?? "",
+                                                Response = result
+                                            }
                                         }
-                                    }
-                                });
+                                    });
+                                }
+                                finally
+                                {
+                                    _sessionLock.Release();
+                                }
                                 _logger.LogInformation($"Sent tool response: {fc.Name}");
                             }
                         }
@@ -157,14 +167,22 @@ public class WebSocketHandler
                     var data = new byte[result.Count];
                     Array.Copy(buffer, data, result.Count);
 
-                    await session.SendRealtimeInputAsync(new LiveSendRealtimeInputParameters
+                    await _sessionLock.WaitAsync(linkedCts.Token);
+                    try
                     {
-                        Media = new Google.GenAI.Types.Blob
+                        await session.SendRealtimeInputAsync(new LiveSendRealtimeInputParameters
                         {
-                            MimeType = "audio/pcm;rate=16000",
-                            Data = data
-                        }
-                    });
+                            Media = new Google.GenAI.Types.Blob
+                            {
+                                MimeType = "audio/pcm;rate=16000",
+                                Data = data
+                            }
+                        });
+                    }
+                    finally
+                    {
+                        _sessionLock.Release();
+                    }
                 }
             }
 
