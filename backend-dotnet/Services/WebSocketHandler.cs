@@ -95,43 +95,53 @@ public class WebSocketHandler
                             {
                                 _logger.LogInformation($"Received Tool Call: {fc.Name}");
                                 
-                                Dictionary<string, object> result;
-                                if (fc.Name == "search_zero_trust_docs")
+                                _ = Task.Run(async () =>
                                 {
-                                    var args = fc.Args != null ? new Dictionary<string, object>(fc.Args) : new Dictionary<string, object>();
-                                    result = await backend_dotnet.Services.RagTool.HandleSearchZeroTrustDocsAsync(args, ragProtocol);
-                                }
-                                else if (fc.Name == "get_current_weather")
-                                {
-                                    var args = fc.Args != null ? new Dictionary<string, object>(fc.Args) : new Dictionary<string, object>();
-                                    result = backend_dotnet.Services.WeatherTool.HandleGetCurrentWeather(args);
-                                }
-                                else
-                                {
-                                    result = new Dictionary<string, object> { ["error"] = "Unknown function" };
-                                }
-
-                                await _sessionLock.WaitAsync(linkedCts.Token);
-                                try
-                                {
-                                    await session.SendToolResponseAsync(new LiveSendToolResponseParameters
+                                    try
                                     {
-                                        FunctionResponses = new List<FunctionResponse>
+                                        Dictionary<string, object> result;
+                                        if (fc.Name == "search_zero_trust_docs")
                                         {
-                                            new FunctionResponse
-                                            {
-                                                Name = fc.Name ?? "unknown",
-                                                Id = fc.Id ?? "",
-                                                Response = result
-                                            }
+                                            var args = fc.Args != null ? new Dictionary<string, object>(fc.Args) : new Dictionary<string, object>();
+                                            result = await backend_dotnet.Services.RagTool.HandleSearchZeroTrustDocsAsync(args, ragProtocol);
                                         }
-                                    });
-                                }
-                                finally
-                                {
-                                    _sessionLock.Release();
-                                }
-                                _logger.LogInformation($"Sent tool response: {fc.Name}");
+                                        else if (fc.Name == "get_current_weather")
+                                        {
+                                            var args = fc.Args != null ? new Dictionary<string, object>(fc.Args) : new Dictionary<string, object>();
+                                            result = backend_dotnet.Services.WeatherTool.HandleGetCurrentWeather(args);
+                                        }
+                                        else
+                                        {
+                                            result = new Dictionary<string, object> { ["error"] = "Unknown function" };
+                                        }
+
+                                        await _sessionLock.WaitAsync(linkedCts.Token);
+                                        try
+                                        {
+                                            await session.SendToolResponseAsync(new LiveSendToolResponseParameters
+                                            {
+                                                FunctionResponses = new List<FunctionResponse>
+                                                {
+                                                    new FunctionResponse
+                                                    {
+                                                        Name = fc.Name ?? "unknown",
+                                                        Id = fc.Id ?? "",
+                                                        Response = result
+                                                    }
+                                                }
+                                            });
+                                        }
+                                        finally
+                                        {
+                                            _sessionLock.Release();
+                                        }
+                                        _logger.LogInformation($"Sent tool response: {fc.Name}");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _logger.LogError($"Tool execution failed: {ex.Message}");
+                                    }
+                                }, linkedCts.Token);
                             }
                         }
 
