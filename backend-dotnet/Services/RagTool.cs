@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 
 using AIPlatform = Google.Cloud.AIPlatform.V1;
 using GenAITypes = Google.GenAI.Types;
+using Google.Api.Gax.Grpc;
+using Google.Api.Gax.Grpc.Rest;
 
 namespace backend_dotnet.Services;
 
@@ -61,7 +63,7 @@ IMPORTANT: When generating the 'query' argument, follow these rules:
         }
     };
 
-    public static async Task<Dictionary<string, object>> HandleSearchZeroTrustDocsAsync(Dictionary<string, object> args)
+    public static async Task<Dictionary<string, object>> HandleSearchZeroTrustDocsAsync(Dictionary<string, object> args, string ragProtocol = "grpc")
     {
         if (args == null || !args.ContainsKey("query") || args["query"] == null)
         {
@@ -73,7 +75,7 @@ IMPORTANT: When generating the 'query' argument, follow these rules:
 
         try
         {
-            var searchResult = await SearchZeroTrustDocsAsync(query);
+            var searchResult = await SearchZeroTrustDocsAsync(query, ragProtocol);
             Console.WriteLine($"[RagTool] Found {searchResult.Contexts.Count} documents from RAG.");
             
             return new Dictionary<string, object>
@@ -88,7 +90,7 @@ IMPORTANT: When generating the 'query' argument, follow these rules:
         }
     }
 
-    private static async Task<SearchResult> SearchZeroTrustDocsAsync(string queryText)
+    private static async Task<SearchResult> SearchZeroTrustDocsAsync(string queryText, string ragProtocol)
     {
         string? projectId = Environment.GetEnvironmentVariable("GOOGLE_CLOUD_PROJECT");
         string? location = Environment.GetEnvironmentVariable("RAG_LOCATION");
@@ -107,6 +109,17 @@ IMPORTANT: When generating the 'query' argument, follow these rules:
         {
             Endpoint = $"{location}-aiplatform.googleapis.com:443"
         };
+        
+        if (ragProtocol?.ToLower() == "rest")
+        {
+            builder.GrpcAdapter = RestGrpcAdapter.Default;
+            Console.WriteLine("[RagTool] Using REST (HTTP/1.1 JSON) transport for Vertex AI SDK.");
+        }
+        else
+        {
+            // Use default gRPC
+            Console.WriteLine("[RagTool] Using gRPC (HTTP/2 Binary) transport for Vertex AI SDK.");
+        }
         var ragClient = await builder.BuildAsync();
 
         string parent = $"projects/{projectId}/locations/{location}";

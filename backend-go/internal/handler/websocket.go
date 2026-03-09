@@ -26,9 +26,6 @@ func (h *WebSocketHandler) Handle(ws *websocket.Conn) {
 	model := "gemini-live-2.5-flash-native-audio"
 	// model := "gemini-live-2.5-flash-preview-native-audio-09-2025"
 
-	// Define tools
-	// Used from internal/tools package
-
 	log.Printf("Connecting to Gemini Live API with model: %s", model)
 	session, err := h.Client.Connect(ctx, model, []*genai.Tool{tools.WeatherTool, tools.RagTool}, SystemInstruction)
 	if err != nil {
@@ -37,12 +34,45 @@ func (h *WebSocketHandler) Handle(ws *websocket.Conn) {
 	}
 	defer session.Close()
 
+	// Channel for sending messages to Gemini session safely
+	// We use a interface{} to handle different types of messages (RealtimeInput, ToolResponse)
+	// or we can define a wrapper struct.
+	type sessionMsg struct {
+		RealtimeInput *genai.LiveRealtimeInput
+		ToolResponse  *genai.LiveToolResponseInput
+	}
+	sendCh := make(chan sessionMsg, 100) // Buffered channel
+
 	// Channel to signal internal errors or completion
 	done := make(chan struct{})
 
-	// Goroutine: Gemini -> Client
+	// Dedicated Write Loop for Gemini Session
 	go func() {
 		defer close(done)
+		for msg := range sendCh {
+			var err error
+			if msg.RealtimeInput != nil {
+				err = session.SendRealtimeInput(*msg.RealtimeInput)
+			} else if msg.ToolResponse != nil {
+				err = session.SendToolResponse(*msg.ToolResponse)
+			}
+
+			if err != nil {
+				log.Printf("Gemini write error: %v", err)
+				return // Exit loop on write error
+			}
+		}
+	}()
+
+	// Goroutine: Gemini -> Client (Read from Gemini)
+	go func() {
+		// Close sendCh when we stop receiving from Gemini to stop the write loop
+		defer func() {
+			// recover in case verify sendCh is not closed? 
+			// Actually, we should just let the main handler close things or use a separate signal.
+			// But for simplicity, if receive fails, we assume session is dead.
+		}()
+		
 		for {
 			msg, err := session.Receive()
 			if err != nil {
@@ -69,33 +99,40 @@ func (h *WebSocketHandler) Handle(ws *websocket.Conn) {
 				for _, fc := range msg.ToolCall.FunctionCalls {
 					log.Printf("Received Tool Call: %s(%v)", fc.Name, fc.Args)
 
-					// Use tool handler
-					var result map[string]any
-					switch fc.Name {
-					case "get_current_weather":
-						result = tools.HandleGetCurrentWeather(fc.Args)
-					case "search_zero_trust_docs":
-						result = tools.HandleSearchZeroTrustDocs(ctx, fc.Args)
-					default:
-						result = map[string]any{"error": "Unknown function"}
-					}
+					// Execute tool asynchronously to not block receive loop
+					go func(fc *genai.FunctionCall) {
+						// Use tool handler
+						var result map[string]any
+						switch fc.Name {
+						case "get_current_weather":
+							result = tools.HandleGetCurrentWeather(fc.Args)
+						case "search_zero_trust_docs":
+							result = tools.HandleSearchZeroTrustDocs(ctx, fc.Args)
+						default:
+							result = map[string]any{"error": "Unknown function"}
+						}
 
-					// Send response
-					err := session.SendToolResponse(genai.LiveToolResponseInput{
-						FunctionResponses: []*genai.FunctionResponse{
-							{
-								Name:     fc.Name,
-								ID:       fc.ID,
-								Response: result,
+						// Send response via channel
+						resp := &genai.LiveToolResponseInput{
+							FunctionResponses: []*genai.FunctionResponse{
+								{
+									Name:     fc.Name,
+									ID:       fc.ID,
+									Response: result,
+								},
 							},
-						},
-					})
-					if err != nil {
-						log.Printf("Failed to send function response: %v", err)
-					} else {
-						// log.Printf("Sent function response: %v", result) // Suppressed to avoid large logs
-						log.Printf("Sent function response for: %s", fc.Name)
-					}
+						}
+						
+						// Non-blocking send or blocking? 
+						// Blocking is safer for order preservation, but tool calls are parallelizable.
+						// The write loop will serialize them.
+						select {
+						case sendCh <- sessionMsg{ToolResponse: resp}:
+							log.Printf("Sent function response for: %s", fc.Name)
+						case <-done:
+							log.Printf("Failed to queue function response (closed): %s", fc.Name)
+						}
+					}(fc)
 				}
 			}
 
@@ -110,15 +147,7 @@ func (h *WebSocketHandler) Handle(ws *websocket.Conn) {
 			}
 
 			// Extract audio parts and send to client
-			// Simple approach: forward the raw JSON or just audio?
-			// For this demo, let's extract audio if present.
 			// msg is *genai.LiveServerMessage
-
-			// We can filter for ServerContent and inline data
-			// TODO: Structure this message for the frontend
-			// For now, let's just marshal the whole message and send it
-			// The frontend can parse it.
-
 			respBytes, err := json.Marshal(msg)
 			if err != nil {
 				log.Printf("Marshal error: %v", err)
@@ -132,16 +161,7 @@ func (h *WebSocketHandler) Handle(ws *websocket.Conn) {
 		}
 	}()
 
-	// Main loop: Client -> Gemini
-	// We expect the client to send audio chunks.
-	// For simplicity, assume client sends raw binary audio (PCM 16kHz or 24kHz)
-	// OR client sends JSON messages.
-	// Let's assume client sends JSON with "audio" field for now, or raw blobs?
-	// To keep it robust, let's assume client sends JSON messages:
-	// { "audio": "base64..." } or just raw binary if we control frontend.
-	// Let's go with raw binary for audio chunks for max efficiency if we can,
-	// but standard WebSocket in JS sends Blobs or ArrayBuffers.
-
+	// Main loop: Client -> Gemini (Read from WebSocket)
 	buf := make([]byte, 4096)
 	for {
 		// Read from Websocket
@@ -154,17 +174,17 @@ func (h *WebSocketHandler) Handle(ws *websocket.Conn) {
 		}
 
 		if n > 0 {
-			// Assume it's audio data (PCM 16kHz 1 channel linear16 usually expected)
-			// We need to wrap it in LiveRealtimeInput
-
-			err = session.SendRealtimeInput(genai.LiveRealtimeInput{
+			// Send audio data via channel
+			input := &genai.LiveRealtimeInput{
 				Media: &genai.Blob{
 					MIMEType: "audio/pcm;rate=16000",
 					Data:     buf[:n],
 				},
-			})
-			if err != nil {
-				log.Printf("Gemini send error: %v", err)
+			}
+			
+			select {
+			case sendCh <- sessionMsg{RealtimeInput: input}:
+			case <-done:
 				break
 			}
 		}
@@ -175,4 +195,8 @@ func (h *WebSocketHandler) Handle(ws *websocket.Conn) {
 		default:
 		}
 	}
+	
+	// Cleanup happens via defer
+	// Ensure write loop exits
+	close(sendCh)
 }
